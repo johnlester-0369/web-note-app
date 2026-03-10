@@ -150,8 +150,9 @@
       z-index: 9;
       opacity: 0;
       transition: opacity var(--transition);
+      pointer-events: none; /* opacity:0 does NOT disable pointer events — without this the transparent overlay blocks all editor clicks on mobile */
     }
-    .sidebar-overlay.active { opacity: 1; }
+    .sidebar-overlay.active { opacity: 1; pointer-events: auto; }
 
     /* ── Sidebar ── */
     .sidebar {
