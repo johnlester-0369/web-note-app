@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Notes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <!-- DM Sans: clean humanist sans-serif; approachable without being bland -->
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Design tokens — raw RGB channels, consumed via rgb(var(--token)) ── */
+    :root {
+      --color-primary: 68 114 210;
+      --color-on-primary: 255 255 255;
+      --color-primary-container: 221 232 254;
+      --color-on-primary-container: 26 48 95;
+
+      --color-surface: 255 255 255;
+      --color-on-surface: 0 0 0;
+      --color-on-surface-variant: 50 65 87;
+      --color-surface-container-low: 248 250 252;
+      --color-surface-container: 241 245 249;
+      --color-surface-container-high: 227 233 241;
+
+      --color-outline: 98 116 142;
+      --color-outline-variant: 144 161 185;
+
+      --color-error: 231 0 11;
+      --color-error-container: 255 226 226;
+
+      --color-shadow: 0 0 0;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: rgb(var(--color-surface-container-low));
+      color: rgb(var(--color-on-surface));
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── App bar ── */
+    .app-bar {
+      height: 56px;
+      background: rgb(var(--color-surface));
+      border-bottom: 1px solid rgb(var(--color-outline-variant));
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+      flex-shrink: 0;
+      /* Slight elevation to separate app chrome from content */
+      box-shadow: 0 1px 3px rgba(var(--color-shadow), 0.06);
+    }
+
+    .app-bar__title {
+      font-size: 20px;
+      font-weight: 600;
+      color: rgb(var(--color-on-surface));
+      flex: 1;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 18px;
+      border: none;
+      border-radius: 20px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s, box-shadow 0.15s;
+    }
+
+    .btn-primary {
+      background: rgb(var(--color-primary));
+      color: rgb(var(--color-on-primary));
+    }
+
+    .btn-primary:hover { opacity: 0.9; box-shadow: 0 2px 6px rgba(var(--color-shadow), 0.18); }
+    .btn-primary:active { opacity: 0.85; }
+
+    .btn-icon {
+      background: transparent;
+      border: none;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      cursor: pointer;
+      color: rgb(var(--color-on-surface-variant));
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+
+    .btn-icon:hover { background: rgba(var(--color-on-surface), 0.08); }
+
+    /* Danger variant — red tint on hover for delete affordance */
+    .btn-icon.danger:hover {
+      background: rgb(var(--color-error-container));
+      color: rgb(var(--color-error));
+    }
+
+    /* ── Layout shell ── */
+    .layout { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 272px;
+      flex-shrink: 0;
+      background: rgb(var(--color-surface-container-low));
+      border-right: 1px solid rgb(var(--color-outline-variant));
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar__top { padding: 12px 12px 4px; }
+
+    .search-wrapper { position: relative; }
+
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: rgb(var(--color-on-surface-variant));
+      pointer-events: none;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 8px 12px 8px 34px;
+      background: rgb(var(--color-surface-container));
+      border: 1.5px solid transparent;
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      color: rgb(var(--color-on-surface));
+      outline: none;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .search-input::placeholder { color: rgb(var(--color-on-surface-variant)); opacity: 0.6; }
+    .search-input:focus { border-color: rgb(var(--color-primary)); background: rgb(var(--color-surface)); }
+
+    .sidebar__count {
+      padding: 8px 16px 4px;
+      font-size: 12px;
+      color: rgb(var(--color-on-surface-variant));
+      font-weight: 500;
+    }
+
+    .notes-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 8px 8px;
+    }
+
+    /* Thin scrollbar — doesn't distract from content */
+    .notes-list::-webkit-scrollbar { width: 4px; }
+    .notes-list::-webkit-scrollbar-track { background: transparent; }
+    .notes-list::-webkit-scrollbar-thumb {
+      background: rgb(var(--color-outline-variant));
+      border-radius: 2px;
+    }
+
+    .note-item {
+      padding: 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.1s;
+      border: 1.5px solid transparent;
+      margin-bottom: 2px;
+    }
+
+    .note-item:hover { background: rgb(var(--color-surface-container)); }
+
+    /* Active state uses primary-container so it's clearly selected but not heavy */
+    .note-item.active {
+      background: rgb(var(--color-primary-container));
+      border-color: rgba(var(--color-primary), 0.25);
+    }
+
+    .note-item__title {
+      font-size: 14px;
+      font-weight: 500;
+      color: rgb(var(--color-on-surface));
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 3px;
+    }
+
+    .note-item.active .note-item__title { color: rgb(var(--color-on-primary-container)); }
+
+    .note-item__preview {
+      font-size: 13px;
+      color: rgb(var(--color-on-surface-variant));
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+
+    .note-item__date { font-size: 11px; color: rgb(var(--color-on-surface-variant)); opacity: 0.8; }
+
+    /* ── Empty state ── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px;
+      gap: 6px;
+      color: rgb(var(--color-on-surface-variant));
+      text-align: center;
+    }
+
+    .empty-state__icon { font-size: 30px; opacity: 0.45; margin-bottom: 4px; }
+    .empty-state__text { font-size: 13px; }
+
+    /* ── Editor ── */
+    .editor {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: rgb(var(--color-surface));
+    }
+
+    .editor__toolbar {
+      display: flex;
+      align-items: center;
+      padding: 8px 20px;
+      border-bottom: 1px solid rgb(var(--color-outline-variant));
+      min-height: 52px;
+      gap: 8px;
+    }
+
+    .editor__date {
+      font-size: 12px;
+      color: rgb(var(--color-on-surface-variant));
+      flex: 1;
+    }
+
+    /* Constrain line length for comfortable reading */
+    .editor__content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 28px 40px 40px;
+      max-width: 760px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .editor__title-input {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 22px;
+      font-weight: 600;
+      color: rgb(var(--color-on-surface));
+      border: none;
+      outline: none;
+      background: transparent;
+      width: 100%;
+      margin-bottom: 16px;
+      padding: 0;
+      resize: none;
+      overflow: hidden;
+      line-height: 1.3;
+    }
+
+    .editor__title-input::placeholder { color: rgb(var(--color-on-surface-variant)); opacity: 0.4; }
+
+    .editor__body-input {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      line-height: 1.75;
+      color: rgb(var(--color-on-surface));
+      border: none;
+      outline: none;
+      background: transparent;
+      width: 100%;
+      flex: 1;
+      resize: none;
+      min-height: 300px;
+      padding: 0;
+    }
+
+    .editor__body-input::placeholder { color: rgb(var(--color-on-surface-variant)); opacity: 0.35; }
+
+    /* ── No-selection placeholder ── */
+    .no-note-selected {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: rgb(var(--color-on-surface-variant));
+      background: rgb(var(--color-surface));
+      user-select: none;
+    }
+
+    .no-note-selected__icon { font-size: 44px; opacity: 0.25; }
+    .no-note-selected__text { font-size: 15px; font-weight: 500; }
+    .no-note-selected__hint { font-size: 13px; opacity: 0.65; }
+
+    /* ── Mobile: stack instead of side-by-side ── */
+    @media (max-width: 600px) {
+      .sidebar { width: 100%; position: absolute; z-index: 10; height: calc(100vh - 56px); }
+      .sidebar.mobile-hidden { display: none; }
+      .editor.mobile-hidden { display: none; }
+      .back-btn { display: inline-flex !important; }
+    }
+
+    .back-btn { display: none; }
+  </style>
+</head>
+<body>
+
+<header class="app-bar">
+  <span class="app-bar__title">Notes</span>
+  <button class="btn btn-primary" id="newNoteBtn" aria-label="Create new note">
+    <!-- Plus icon -->
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+    New Note
+  </button>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar__top">
+      <div class="search-wrapper">
+        <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input
+          class="search-input"
+          type="search"
+          id="searchInput"
+          placeholder="Search notes…"
+          aria-label="Search notes"
+          autocomplete="off"
+        />
+      </div>
+    </div>
+    <div class="sidebar__count" id="noteCount" aria-live="polite"></div>
+    <div class="notes-list" id="notesList" role="list"></div>
+  </aside>
+
+  <main class="editor" id="editor" aria-label="Note editor">
+
+    <!-- Shown when no note is active -->
+    <div class="no-note-selected" id="noNoteSelected">
+      <div class="no-note-selected__icon" aria-hidden="true">📝</div>
+      <div class="no-note-selected__text">No note selected</div>
+      <div class="no-note-selected__hint">Create a new note or pick one from the list</div>
+    </div>
+
+    <!-- Active note editor panel -->
+    <div id="editorPanel" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+      <div class="editor__toolbar">
+        <button class="btn-icon back-btn" id="backBtn" aria-label="Back to list">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+        </button>
+        <span class="editor__date" id="editorDate" aria-label="Last modified"></span>
+        <button class="btn-icon danger" id="deleteNoteBtn" aria-label="Delete note" title="Delete note">
+          <!-- Trash icon -->
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6"/><path d="M14 11v6"/>
+            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+          </svg>
+        </button>
+      </div>
+      <div class="editor__content">
+        <textarea
+          class="editor__title-input"
+          id="noteTitleInput"
+          placeholder="Untitled"
+          rows="1"
+          aria-label="Note title"
+        ></textarea>
+        <textarea
+          class="editor__body-input"
+          id="noteBodyInput"
+          placeholder="Start writing…"
+          aria-label="Note content"
+        ></textarea>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // ── Utility ────────────────────────────────────────────────────────────────
+
+  // Grow textarea to fit content so the user never sees a scrollbar inside the field
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+
+  // Collision-resistant ID: timestamp base-36 + random suffix; no crypto dep needed here
+  function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  // Relative label for the sidebar list — keeps the UI scannable without full timestamps
+  function formatDate(ts) {
+    const diff = Date.now() - ts;
+    const days = Math.floor(diff / 86400000);
+    const d = new Date(ts);
+    if (days === 0) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (days === 1) return 'Yesterday';
+    if (days < 7)  return d.toLocaleDateString([], { weekday: 'short' });
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+
+  // Full date shown in editor toolbar for context
+  function formatDateFull(ts) {
+    return new Date(ts).toLocaleDateString([], {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+  }
+
+  // Guard against XSS when injecting user content as innerHTML in the list
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ── State ──────────────────────────────────────────────────────────────────
+
+  let notes        = [];   // in-memory array, mirrored to localStorage
+  let activeNoteId = null; // id of currently open note
+  let saveTimer    = null; // handle for debounced auto-save
+
+  // ── Persistence ────────────────────────────────────────────────────────────
+
+  function loadNotes() {
+    try {
+      const raw = localStorage.getItem('notes-app-v1');
+      notes = raw ? JSON.parse(raw) : [];
+    } catch {
+      // Corrupted storage — start fresh rather than crash
+      notes = [];
+    }
+  }
+
+  function saveNotesToStorage() {
+    localStorage.setItem('notes-app-v1', JSON.stringify(notes));
+  }
+
+  // ── Derived state ──────────────────────────────────────────────────────────
+
+  function getActiveNote() {
+    return notes.find(n => n.id === activeNoteId) ?? null;
+  }
+
+  // ── Rendering ──────────────────────────────────────────────────────────────
+
+  function renderNotesList(query = '') {
+    const listEl   = document.getElementById('notesList');
+    const countEl  = document.getElementById('noteCount');
+    const q        = query.trim().toLowerCase();
+
+    const filtered = q
+      ? notes.filter(n =>
+          n.title.toLowerCase().includes(q) ||
+          n.body.toLowerCase().includes(q)
+        )
+      : notes;
+
+    // Newest-modified first so last-worked-on is always at top
+    const sorted = [...filtered].sort((a, b) => b.updatedAt - a.updatedAt);
+
+    countEl.textContent = sorted.length === 1 ? '1 note' : `${sorted.length} notes`;
+
+    if (sorted.length === 0) {
+      listEl.innerHTML = `
+        <div class="empty-state" role="status">
+          <div class="empty-state__icon" aria-hidden="true">${q ? '🔍' : '📋'}</div>
+          <div class="empty-state__text">${q ? 'No matches found' : 'No notes yet'}</div>
+        </div>`;
+      return;
+    }
+
+    listEl.innerHTML = sorted.map(note => `
+      <div
+        class="note-item${note.id === activeNoteId ? ' active' : ''}"
+        data-id="${note.id}"
+        role="listitem"
+        tabindex="0"
+        aria-current="${note.id === activeNoteId ? 'true' : 'false'}"
+      >
+        <div class="note-item__title">${escapeHtml(note.title) || 'Untitled'}</div>
+        <div class="note-item__preview">${escapeHtml(note.body.split('\n')[0]) || 'No content'}</div>
+        <div class="note-item__date">${formatDate(note.updatedAt)}</div>
+      </div>
+    `).join('');
+
+    listEl.querySelectorAll('.note-item').forEach(item => {
+      item.addEventListener('click', () => selectNote(item.dataset.id));
+      // Keyboard accessibility — Enter/Space activates item
+      item.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') selectNote(item.dataset.id);
+      });
+    });
+  }
+
+  // ── Note operations ────────────────────────────────────────────────────────
+
+  function selectNote(id) {
+    activeNoteId = id;
+    const note = getActiveNote();
+    if (!note) return;
+
+    document.getElementById('noNoteSelected').style.display  = 'none';
+    const panel = document.getElementById('editorPanel');
+    panel.style.display = 'flex';
+
+    const titleEl = document.getElementById('noteTitleInput');
+    const bodyEl  = document.getElementById('noteBodyInput');
+
+    titleEl.value = note.title;
+    bodyEl.value  = note.body;
+    document.getElementById('editorDate').textContent = formatDateFull(note.updatedAt);
+
+    autoResize(titleEl);
+
+    // Mobile: hide sidebar, show editor
+    document.getElementById('sidebar').classList.add('mobile-hidden');
+    document.getElementById('editor').classList.remove('mobile-hidden');
+
+    renderNotesList(document.getElementById('searchInput').value);
+  }
+
+  function createNote() {
+    const note = {
+      id:        generateId(),
+      title:     '',
+      body:      '',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    notes.unshift(note); // prepend so it appears at top immediately
+    saveNotesToStorage();
+    selectNote(note.id);
+    document.getElementById('noteTitleInput').focus();
+  }
+
+  function deleteNote(id) {
+    notes = notes.filter(n => n.id !== id);
+    saveNotesToStorage();
+    activeNoteId = null;
+
+    if (notes.length > 0) {
+      // Auto-select most recently updated so the UI stays populated
+      const next = [...notes].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+      selectNote(next.id);
+    } else {
+      document.getElementById('noNoteSelected').style.display  = 'flex';
+      document.getElementById('editorPanel').style.display     = 'none';
+      // Mobile: show sidebar when all notes are gone
+      document.getElementById('sidebar').classList.remove('mobile-hidden');
+      renderNotesList();
+    }
+  }
+
+  // Debounce saves so we don't thrash localStorage on every keystroke
+  function scheduleAutoSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      const note = getActiveNote();
+      if (!note) return;
+      note.title     = document.getElementById('noteTitleInput').value;
+      note.body      = document.getElementById('noteBodyInput').value;
+      note.updatedAt = Date.now();
+      document.getElementById('editorDate').textContent = formatDateFull(note.updatedAt);
+      saveNotesToStorage();
+      renderNotesList(document.getElementById('searchInput').value);
+    }, 400);
+  }
+
+  // ── Event wiring ───────────────────────────────────────────────────────────
+
+  document.getElementById('newNoteBtn').addEventListener('click', createNote);
+
+  document.getElementById('deleteNoteBtn').addEventListener('click', () => {
+    if (activeNoteId) deleteNote(activeNoteId);
+  });
+
+  document.getElementById('noteTitleInput').addEventListener('input', e => {
+    autoResize(e.target);
+    scheduleAutoSave();
+  });
+
+  document.getElementById('noteBodyInput').addEventListener('input', scheduleAutoSave);
+
+  document.getElementById('searchInput').addEventListener('input', e => {
+    renderNotesList(e.target.value);
+  });
+
+  // Mobile back button: return to note list
+  document.getElementById('backBtn').addEventListener('click', () => {
+    document.getElementById('sidebar').classList.remove('mobile-hidden');
+    document.getElementById('editor').classList.add('mobile-hidden');
+  });
+
+  // ── Initialise ─────────────────────────────────────────────────────────────
+
+  loadNotes();
+  renderNotesList();
+
+  // Open the most recently touched note on load so the user lands in context
+  if (notes.length > 0) {
+    const recent = [...notes].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    selectNote(recent.id);
+  }
+</script>
+
+</body>
+</html>
