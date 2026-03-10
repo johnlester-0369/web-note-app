@@ -680,7 +680,7 @@
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
 
-  // Relative label for the sidebar list — keeps the UI scannable without full timestamps
+  // Relative label for the sidebar list — keeps UI scannable without full timestamps
   function formatDate(ts) {
     const diff = Date.now() - ts;
     const days = Math.floor(diff / 86400000);
@@ -707,11 +707,23 @@
       .replace(/"/g, '&quot;');
   }
 
+  // Split on whitespace — empty string correctly returns 0 words
+  function countWords(str) {
+    const s = str.trim();
+    return s === '' ? 0 : s.split(/\s+/).length;
+  }
+
+  // ── Viewport helper ────────────────────────────────────────────────────────
+
+  // Must mirror the CSS 639px breakpoint exactly so JS and CSS agree on "mobile"
+  function isMobile() { return window.innerWidth < 640; }
+
   // ── State ──────────────────────────────────────────────────────────────────
 
-  let notes        = [];   // in-memory array, mirrored to localStorage
-  let activeNoteId = null; // id of currently open note
-  let saveTimer    = null; // handle for debounced auto-save
+  let notes           = [];   // in-memory array, mirrored to localStorage
+  let activeNoteId    = null; // ID of the currently open note
+  let saveTimer       = null; // handle for debounced auto-save
+  let saveStatusTimer = null; // handle for "Saved" auto-hide after 2 s
 
   // ── Persistence ────────────────────────────────────────────────────────────
 
@@ -735,12 +747,57 @@
     return notes.find(n => n.id === activeNoteId) ?? null;
   }
 
+  // ── Mobile sidebar ─────────────────────────────────────────────────────────
+
+  function openSidebar() {
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('sidebarOverlay').classList.add('active');
+    document.getElementById('sidebarToggleBtn').setAttribute('aria-expanded', 'true');
+    // Lock body scroll — sidebar acts as a modal sheet on mobile
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('active');
+    document.getElementById('sidebarToggleBtn').setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+  }
+
+  // ── Save status indicator ──────────────────────────────────────────────────
+
+  function showSaveStatus(msg) {
+    const el = document.getElementById('saveStatus');
+    clearTimeout(saveStatusTimer);
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    // "Saved" auto-dismisses to keep the toolbar uncluttered; "Saving…" stays until done
+    if (msg === 'Saved') {
+      saveStatusTimer = setTimeout(() => el.classList.add('hidden'), 2000);
+    }
+  }
+
+  // ── Word / char count ──────────────────────────────────────────────────────
+
+  function updateStats() {
+    const title = document.getElementById('noteTitleInput').value;
+    const body  = document.getElementById('noteBodyInput').value;
+    // Count title + body as a unit — users think of the whole note, not individual fields
+    const combined = (title + ' ' + body).trim();
+    const words = countWords(combined);
+    const chars = combined.length;
+    document.getElementById('wordCountStat').textContent =
+      `${words} word${words === 1 ? '' : 's'}`;
+    document.getElementById('charCountStat').textContent =
+      `${chars} char${chars === 1 ? '' : 's'}`;
+  }
+
   // ── Rendering ──────────────────────────────────────────────────────────────
 
   function renderNotesList(query = '') {
-    const listEl   = document.getElementById('notesList');
-    const countEl  = document.getElementById('noteCount');
-    const q        = query.trim().toLowerCase();
+    const listEl  = document.getElementById('notesList');
+    const countEl = document.getElementById('noteCount');
+    const q       = query.trim().toLowerCase();
 
     const filtered = q
       ? notes.filter(n =>
@@ -752,15 +809,18 @@
     // Newest-modified first so last-worked-on is always at top
     const sorted = [...filtered].sort((a, b) => b.updatedAt - a.updatedAt);
 
-    countEl.textContent = sorted.length === 1 ? '1 note' : `${sorted.length} notes`;
+    countEl.textContent = sorted.length;
 
     if (sorted.length === 0) {
       listEl.innerHTML = `
         <div class="empty-state" role="status">
-          <div class="empty-state__icon" aria-hidden="true">${q ? '<i data-lucide="search"></i>' : '<i data-lucide="file-text"></i>'}</div>
-          <div class="empty-state__text">${q ? 'No matches found' : 'No notes yet'}</div>
+          <div class="empty-state__icon" aria-hidden="true">
+            ${q ? '<i data-lucide="search-x"></i>' : '<i data-lucide="file-plus-2"></i>'}
+          </div>
+          <div class="empty-state__label">${q ? 'No matches found' : 'No notes yet'}</div>
+          <div class="empty-state__sublabel">${q ? 'Try a different search' : 'Tap New Note to get started'}</div>
         </div>`;
-      // Re-initialize Lucide after dynamic innerHTML injection — the startup createIcons() only sees the original DOM
+      // Re-initialize Lucide after dynamic innerHTML — startup createIcons() only saw the original DOM
       lucide.createIcons();
       return;
     }
@@ -772,6 +832,7 @@
         role="listitem"
         tabindex="0"
         aria-current="${note.id === activeNoteId ? 'true' : 'false'}"
+        aria-label="${escapeHtml(note.title) || 'Untitled'}"
       >
         <div class="note-item__title">${escapeHtml(note.title) || 'Untitled'}</div>
         <div class="note-item__preview">${escapeHtml(note.body.split('\n')[0]) || 'No content'}</div>
@@ -780,10 +841,18 @@
     `).join('');
 
     listEl.querySelectorAll('.note-item').forEach(item => {
-      item.addEventListener('click', () => selectNote(item.dataset.id));
+      item.addEventListener('click', () => {
+        selectNote(item.dataset.id);
+        // Auto-close overlay sidebar when a note is chosen on mobile
+        if (isMobile()) closeSidebar();
+      });
       // Keyboard accessibility — Enter/Space activates item
       item.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key === ' ') selectNote(item.dataset.id);
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          selectNote(item.dataset.id);
+          if (isMobile()) closeSidebar();
+        }
       });
     });
   }
@@ -795,7 +864,7 @@
     const note = getActiveNote();
     if (!note) return;
 
-    document.getElementById('noNoteSelected').style.display  = 'none';
+    document.getElementById('noNoteSelected').style.display = 'none';
     const panel = document.getElementById('editorPanel');
     panel.style.display = 'flex';
 
@@ -805,12 +874,10 @@
     titleEl.value = note.title;
     bodyEl.value  = note.body;
     document.getElementById('editorDate').textContent = formatDateFull(note.updatedAt);
+    document.getElementById('saveStatus').classList.add('hidden');
 
     autoResize(titleEl);
-
-    // Mobile: hide sidebar, show editor
-    document.getElementById('sidebar').classList.add('mobile-hidden');
-    document.getElementById('editor').classList.remove('mobile-hidden');
+    updateStats();
 
     renderNotesList(document.getElementById('searchInput').value);
   }
@@ -826,6 +893,7 @@
     notes.unshift(note); // prepend so it appears at top immediately
     saveNotesToStorage();
     selectNote(note.id);
+    if (isMobile()) closeSidebar();
     document.getElementById('noteTitleInput').focus();
   }
 
@@ -841,14 +909,15 @@
     } else {
       document.getElementById('noNoteSelected').style.display  = 'flex';
       document.getElementById('editorPanel').style.display     = 'none';
-      // Mobile: show sidebar when all notes are gone
-      document.getElementById('sidebar').classList.remove('mobile-hidden');
+      // Return to sidebar when all notes are gone on mobile
+      if (isMobile()) openSidebar();
       renderNotesList();
     }
   }
 
   // Debounce saves so we don't thrash localStorage on every keystroke
   function scheduleAutoSave() {
+    showSaveStatus('Saving…');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       const note = getActiveNote();
@@ -859,12 +928,16 @@
       document.getElementById('editorDate').textContent = formatDateFull(note.updatedAt);
       saveNotesToStorage();
       renderNotesList(document.getElementById('searchInput').value);
+      showSaveStatus('Saved');
+      updateStats();
     }, 400);
   }
 
   // ── Event wiring ───────────────────────────────────────────────────────────
 
   document.getElementById('newNoteBtn').addEventListener('click', createNote);
+  document.getElementById('newNoteBtn2').addEventListener('click', createNote);
+  document.getElementById('fabNewNoteBtn').addEventListener('click', createNote);
 
   document.getElementById('deleteNoteBtn').addEventListener('click', () => {
     if (activeNoteId) deleteNote(activeNoteId);
@@ -881,11 +954,18 @@
     renderNotesList(e.target.value);
   });
 
-  // Mobile back button: return to note list
-  document.getElementById('backBtn').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.remove('mobile-hidden');
-    document.getElementById('editor').classList.add('mobile-hidden');
+  // Mobile: back button opens the slide-in sidebar to return to the list
+  document.getElementById('backBtn').addEventListener('click', openSidebar);
+
+  // Mobile: hamburger in app bar toggles sidebar
+  document.getElementById('sidebarToggleBtn').addEventListener('click', () => {
+    document.getElementById('sidebar').classList.contains('open')
+      ? closeSidebar()
+      : openSidebar();
   });
+
+  // Mobile: tapping the dimmed overlay dismisses the sidebar
+  document.getElementById('sidebarOverlay').addEventListener('click', closeSidebar);
 
   // ── Initialise ─────────────────────────────────────────────────────────────
 
