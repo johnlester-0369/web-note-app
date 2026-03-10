@@ -809,15 +809,18 @@
     // Newest-modified first so last-worked-on is always at top
     const sorted = [...filtered].sort((a, b) => b.updatedAt - a.updatedAt);
 
-    countEl.textContent = sorted.length === 1 ? '1 note' : `${sorted.length} notes`;
+    countEl.textContent = sorted.length;
 
     if (sorted.length === 0) {
       listEl.innerHTML = `
         <div class="empty-state" role="status">
-          <div class="empty-state__icon" aria-hidden="true">${q ? '<i data-lucide="search"></i>' : '<i data-lucide="file-text"></i>'}</div>
-          <div class="empty-state__text">${q ? 'No matches found' : 'No notes yet'}</div>
+          <div class="empty-state__icon" aria-hidden="true">
+            ${q ? '<i data-lucide="search-x"></i>' : '<i data-lucide="file-plus-2"></i>'}
+          </div>
+          <div class="empty-state__label">${q ? 'No matches found' : 'No notes yet'}</div>
+          <div class="empty-state__sublabel">${q ? 'Try a different search' : 'Tap New Note to get started'}</div>
         </div>`;
-      // Re-initialize Lucide after dynamic innerHTML injection — the startup createIcons() only sees the original DOM
+      // Re-initialize Lucide after dynamic innerHTML — startup createIcons() only saw the original DOM
       lucide.createIcons();
       return;
     }
@@ -829,6 +832,7 @@
         role="listitem"
         tabindex="0"
         aria-current="${note.id === activeNoteId ? 'true' : 'false'}"
+        aria-label="${escapeHtml(note.title) || 'Untitled'}"
       >
         <div class="note-item__title">${escapeHtml(note.title) || 'Untitled'}</div>
         <div class="note-item__preview">${escapeHtml(note.body.split('\n')[0]) || 'No content'}</div>
@@ -837,10 +841,18 @@
     `).join('');
 
     listEl.querySelectorAll('.note-item').forEach(item => {
-      item.addEventListener('click', () => selectNote(item.dataset.id));
+      item.addEventListener('click', () => {
+        selectNote(item.dataset.id);
+        // Auto-close overlay sidebar when a note is chosen on mobile
+        if (isMobile()) closeSidebar();
+      });
       // Keyboard accessibility — Enter/Space activates item
       item.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key === ' ') selectNote(item.dataset.id);
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          selectNote(item.dataset.id);
+          if (isMobile()) closeSidebar();
+        }
       });
     });
   }
