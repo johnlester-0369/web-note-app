@@ -680,7 +680,7 @@
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
 
-  // Relative label for the sidebar list — keeps the UI scannable without full timestamps
+  // Relative label for the sidebar list — keeps UI scannable without full timestamps
   function formatDate(ts) {
     const diff = Date.now() - ts;
     const days = Math.floor(diff / 86400000);
@@ -707,11 +707,23 @@
       .replace(/"/g, '&quot;');
   }
 
+  // Split on whitespace — empty string correctly returns 0 words
+  function countWords(str) {
+    const s = str.trim();
+    return s === '' ? 0 : s.split(/\s+/).length;
+  }
+
+  // ── Viewport helper ────────────────────────────────────────────────────────
+
+  // Must mirror the CSS 639px breakpoint exactly so JS and CSS agree on "mobile"
+  function isMobile() { return window.innerWidth < 640; }
+
   // ── State ──────────────────────────────────────────────────────────────────
 
-  let notes        = [];   // in-memory array, mirrored to localStorage
-  let activeNoteId = null; // id of currently open note
-  let saveTimer    = null; // handle for debounced auto-save
+  let notes           = [];   // in-memory array, mirrored to localStorage
+  let activeNoteId    = null; // ID of the currently open note
+  let saveTimer       = null; // handle for debounced auto-save
+  let saveStatusTimer = null; // handle for "Saved" auto-hide after 2 s
 
   // ── Persistence ────────────────────────────────────────────────────────────
 
@@ -735,12 +747,57 @@
     return notes.find(n => n.id === activeNoteId) ?? null;
   }
 
+  // ── Mobile sidebar ─────────────────────────────────────────────────────────
+
+  function openSidebar() {
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('sidebarOverlay').classList.add('active');
+    document.getElementById('sidebarToggleBtn').setAttribute('aria-expanded', 'true');
+    // Lock body scroll — sidebar acts as a modal sheet on mobile
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('active');
+    document.getElementById('sidebarToggleBtn').setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+  }
+
+  // ── Save status indicator ──────────────────────────────────────────────────
+
+  function showSaveStatus(msg) {
+    const el = document.getElementById('saveStatus');
+    clearTimeout(saveStatusTimer);
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    // "Saved" auto-dismisses to keep the toolbar uncluttered; "Saving…" stays until done
+    if (msg === 'Saved') {
+      saveStatusTimer = setTimeout(() => el.classList.add('hidden'), 2000);
+    }
+  }
+
+  // ── Word / char count ──────────────────────────────────────────────────────
+
+  function updateStats() {
+    const title = document.getElementById('noteTitleInput').value;
+    const body  = document.getElementById('noteBodyInput').value;
+    // Count title + body as a unit — users think of the whole note, not individual fields
+    const combined = (title + ' ' + body).trim();
+    const words = countWords(combined);
+    const chars = combined.length;
+    document.getElementById('wordCountStat').textContent =
+      `${words} word${words === 1 ? '' : 's'}`;
+    document.getElementById('charCountStat').textContent =
+      `${chars} char${chars === 1 ? '' : 's'}`;
+  }
+
   // ── Rendering ──────────────────────────────────────────────────────────────
 
   function renderNotesList(query = '') {
-    const listEl   = document.getElementById('notesList');
-    const countEl  = document.getElementById('noteCount');
-    const q        = query.trim().toLowerCase();
+    const listEl  = document.getElementById('notesList');
+    const countEl = document.getElementById('noteCount');
+    const q       = query.trim().toLowerCase();
 
     const filtered = q
       ? notes.filter(n =>
