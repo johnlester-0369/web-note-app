@@ -864,7 +864,7 @@
     const note = getActiveNote();
     if (!note) return;
 
-    document.getElementById('noNoteSelected').style.display  = 'none';
+    document.getElementById('noNoteSelected').style.display = 'none';
     const panel = document.getElementById('editorPanel');
     panel.style.display = 'flex';
 
@@ -874,12 +874,10 @@
     titleEl.value = note.title;
     bodyEl.value  = note.body;
     document.getElementById('editorDate').textContent = formatDateFull(note.updatedAt);
+    document.getElementById('saveStatus').classList.add('hidden');
 
     autoResize(titleEl);
-
-    // Mobile: hide sidebar, show editor
-    document.getElementById('sidebar').classList.add('mobile-hidden');
-    document.getElementById('editor').classList.remove('mobile-hidden');
+    updateStats();
 
     renderNotesList(document.getElementById('searchInput').value);
   }
@@ -895,6 +893,7 @@
     notes.unshift(note); // prepend so it appears at top immediately
     saveNotesToStorage();
     selectNote(note.id);
+    if (isMobile()) closeSidebar();
     document.getElementById('noteTitleInput').focus();
   }
 
@@ -910,14 +909,15 @@
     } else {
       document.getElementById('noNoteSelected').style.display  = 'flex';
       document.getElementById('editorPanel').style.display     = 'none';
-      // Mobile: show sidebar when all notes are gone
-      document.getElementById('sidebar').classList.remove('mobile-hidden');
+      // Return to sidebar when all notes are gone on mobile
+      if (isMobile()) openSidebar();
       renderNotesList();
     }
   }
 
   // Debounce saves so we don't thrash localStorage on every keystroke
   function scheduleAutoSave() {
+    showSaveStatus('Saving…');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       const note = getActiveNote();
@@ -928,12 +928,16 @@
       document.getElementById('editorDate').textContent = formatDateFull(note.updatedAt);
       saveNotesToStorage();
       renderNotesList(document.getElementById('searchInput').value);
+      showSaveStatus('Saved');
+      updateStats();
     }, 400);
   }
 
   // ── Event wiring ───────────────────────────────────────────────────────────
 
   document.getElementById('newNoteBtn').addEventListener('click', createNote);
+  document.getElementById('newNoteBtn2').addEventListener('click', createNote);
+  document.getElementById('fabNewNoteBtn').addEventListener('click', createNote);
 
   document.getElementById('deleteNoteBtn').addEventListener('click', () => {
     if (activeNoteId) deleteNote(activeNoteId);
@@ -950,11 +954,18 @@
     renderNotesList(e.target.value);
   });
 
-  // Mobile back button: return to note list
-  document.getElementById('backBtn').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.remove('mobile-hidden');
-    document.getElementById('editor').classList.add('mobile-hidden');
+  // Mobile: back button opens the slide-in sidebar to return to the list
+  document.getElementById('backBtn').addEventListener('click', openSidebar);
+
+  // Mobile: hamburger in app bar toggles sidebar
+  document.getElementById('sidebarToggleBtn').addEventListener('click', () => {
+    document.getElementById('sidebar').classList.contains('open')
+      ? closeSidebar()
+      : openSidebar();
   });
+
+  // Mobile: tapping the dimmed overlay dismisses the sidebar
+  document.getElementById('sidebarOverlay').addEventListener('click', closeSidebar);
 
   // ── Initialise ─────────────────────────────────────────────────────────────
 
