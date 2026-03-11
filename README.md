@@ -4,7 +4,7 @@
 
 Most note-taking tools demand cloud sync, a sign-up flow, or a bundler before you can write a single line. Notes skips all of that — open `index.html`, start writing. Everything persists to `localStorage`, private and offline-ready by default.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-brightgreen)](https://johnlester-0369.github.io/web-note-app)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-brightgreen)](https://johnlester-0369.github.io/web-notes-app)
 
 ![Notes app screenshot](./docs/preview.png)
 
